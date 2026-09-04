@@ -1,0 +1,98 @@
+{
+  "uat_db": "ashish_db_uat",
+  "prod_db": "ashish_db",
+  "uat_table_count": 113,
+  "prod_table_count": 105,
+  "missing_tables_in_prod": [
+    "catalogue_quote_change_logs",
+    "catalogue_quote_contributors",
+    "catalogue_quote_line_removal_requests",
+    "catalogue_quote_visits",
+    "day_book_days",
+    "day_book_manual_entries",
+    "upi_mandate_executions",
+    "upi_mandates"
+  ],
+  "extra_tables_in_prod": [],
+  "missing_columns_in_prod": {
+    "catalogue_quote_lines": [
+      "added_by_id",
+      "is_removed",
+      "pricing_meta",
+      "removed_at",
+      "removed_by_id"
+    ],
+    "catalogue_quote_payments": [
+      "notes",
+      "reference_no"
+    ],
+    "catalogue_quotes": [
+      "cart_pricing_meta",
+      "sales_credit_snapshot",
+      "version"
+    ],
+    "grn_batches": [
+      "stone_rate_basis",
+      "stone_wt_unit"
+    ],
+    "grn_lots": [
+      "stone_rate_basis",
+      "stone_wt_unit"
+    ],
+    "pattern_code_registry": [
+      "description"
+    ],
+    "payments": [
+      "payment_provider",
+      "upi_execution_id"
+    ],
+    "product_operation_charges": [
+      "DESCRIPTION"
+    ],
+    "purchase_orders": [
+      "status"
+    ]
+  },
+  "column_type_diffs": {
+    "catalogue_quote_payments": [
+      "amount: UAT(decimal(14,2), null=NO) vs PROD(decimal(14,2), null=YES)"
+    ],
+    "hsn_master": [
+      "is_active: UAT(tinyint(1), null=YES) vs PROD(tinyint(1), null=NO)"
+    ],
+    "product_items": [
+      "is_parent_product: UAT(tinyint(1), null=NO) vs PROD(tinyint(1), null=YES)"
+    ],
+    "product_tags": [
+      "huid: UAT(varchar(64), null=NO) vs PROD(varchar(50), null=YES)",
+      "remark: UAT(varchar(255), null=NO) vs PROD(varchar(50), null=NO)"
+    ],
+    "sale_items": [
+      "hsn: UAT(varchar(20), null=NO) vs PROD(varchar(20), null=YES)"
+    ],
+    "stones": [
+      "stone_name: UAT(text, null=NO) vs PROD(varchar(100), null=NO)"
+    ]
+  },
+  "missing_indexes_in_prod": {
+    "catalogue_quote_lines": [
+      "catalogue_quote_lines_added_by_id_idx",
+      "catalogue_quote_lines_is_removed_idx",
+      "catalogue_quote_lines_removed_by_id_idx"
+    ],
+    "hsn_master": [
+      "created_by_id",
+      "uniq_hsn_code",
+      "updated_by_id"
+    ],
+    "payments": [
+      "payments_payment_provider_idx",
+      "payments_upi_execution_id_fk"
+    ],
+    "tag_templates": [
+      "name"
+    ]
+  },
+  "missing_django_migrations_in_prod": [],
+  "extra_django_migrations_in_prod": []
+}
