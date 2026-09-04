@@ -161,7 +161,7 @@ OTPMSG_ROUTE = int(os.getenv("OTPMSG_ROUTE", "1"))
 OTPMSG_DCS = int(os.getenv("OTPMSG_DCS", "8"))
 OTPMSG_ENTITY_ID = os.getenv("OTPMSG_ENTITY_ID", "")
 
-# DLT template IDs (otpmsg.in / Ashish Jewellers)
+# DLT template IDs (otpmsg.in / Taranya Jewels)
 SMS_DLT_LOGIN_OTP = os.getenv("SMS_DLT_LOGIN_OTP", "1777178644803861286")
 SMS_DLT_OUTSTANDING_BALANCE = os.getenv("SMS_DLT_OUTSTANDING_BALANCE", "1777178636239869925")
 SMS_DLT_ADVANCE_RECEIPT = os.getenv("SMS_DLT_ADVANCE_RECEIPT", "1777178636191895435")
@@ -205,7 +205,7 @@ ICICI_SUB_MERCHANT_ID = (
 ICICI_TERMINAL_ID = os.getenv("ICICI_TERMINAL_ID", "6012").strip() or "6012"
 # QR API PDF: terminalId default MCC 5411 for QR3 / Intent
 ICICI_UPI_MCC = os.getenv("ICICI_UPI_MCC", "5411").strip() or "5411"
-ICICI_MERCHANT_NAME = os.getenv("ICICI_MERCHANT_NAME", "One Ashish").strip() or "One Ashish"
+ICICI_MERCHANT_NAME = os.getenv("ICICI_MERCHANT_NAME", "Taranya").strip() or "Taranya"
 ICICI_SUB_MERCHANT_NAME = (
     os.getenv("ICICI_SUB_MERCHANT_NAME", "Jewellery Scheme").strip() or "Jewellery Scheme"
 )

@@ -1,5 +1,5 @@
 """
-otpmsg.in DLT SMS — Ashish Jewellers.
+otpmsg.in DLT SMS — Taranya Jewels.
 
 One public helper per approved DLT template. All low-level HTTP details stay
 inside send_dlt_sms / _encode_otpmsg_query so callers only pass text + template-id.
@@ -199,7 +199,7 @@ def send_dlt_sms(*, number: str, text: str, dlt_template_id: str) -> Tuple[bool,
 
 def send_login_otp(mobile: str, otp: str) -> Tuple[bool, str]:
     text = (
-        f"Use OTP {otp} to securely log in to your Ashish Jewellers account. "
+        f"Use OTP {otp} to securely log in to your Taranya Jewels account. "
         f"This OTP is valid for 10 minutes. Please do not share it with anyone. "
         f"Visit: https://oneashish.in/home"
     )
@@ -211,7 +211,7 @@ def send_scheme_due_reminder_sms(*, mobile: str, customer_name: str, amount, due
         f"Dear {customer_name}, This is a reminder that your jewellery savings scheme "
         f"installment of Rs {_format_inr(amount)} is due on{_format_date(due_date)}. "
         f"Please ignore this message if you have already made the payment. "
-        f"Thank you, ASHISH JWELLERS"
+        f"Thank you, TARANYA JEWELS"
     )
     return send_dlt_sms(number=mobile, text=text, dlt_template_id=settings.SMS_DLT_SCHEME_DUE_REMINDER)
 
@@ -221,7 +221,7 @@ def send_udhar_payment_reminder_sms(*, mobile: str, balance_amount) -> Tuple[boo
         f"A balance of Rs{_format_inr(balance_amount)} is pending in your account. "
         f"Kindly visit our store or contact us for payment. "
         f"Please ignore this message if payment has already been made. "
-        f"Thank you,ASHISH JWELLERS"
+        f"Thank you,TARANYA JEWELS"
     )
     return send_dlt_sms(number=mobile, text=text, dlt_template_id=settings.SMS_DLT_UDHAR_REMINDER)
 
@@ -233,7 +233,7 @@ def send_outstanding_balance_payment_sms(
         f"We have received your payment of Rs {_format_inr(payment_amount)} against your outstanding balance. "
         f"Receipt Number: {receipt_number} "
         f"Remaining Balance: Rs{_format_inr(remaining_balance)} "
-        f"Thank you. ASHISH JWELLERS"
+        f"Thank you. TARANYA JEWELS"
     )
     return send_dlt_sms(number=mobile, text=text, dlt_template_id=settings.SMS_DLT_OUTSTANDING_BALANCE)
 
@@ -244,7 +244,7 @@ def send_advance_receipt_sms(
     text = (
         f"Dear {customer_name}, We have received your advance payment of Rs {_format_inr(amount)}. "
         f"Receipt Number: {receipt_number} Date: {_format_date(payment_date)} "
-        f"Thank you for your trust. ASHISH JWELLERS"
+        f"Thank you for your trust. TARANYA JEWELS"
     )
     return send_dlt_sms(number=mobile, text=text, dlt_template_id=settings.SMS_DLT_ADVANCE_RECEIPT)
 
@@ -297,7 +297,7 @@ def send_gold_rate_sms(
         f"Today's Gold Rate: 24K: Rs{_format_dlt_num(gold_24k_per_g)} / gram "
         f"22K: Rs{_format_dlt_num(gold_22k_per_g)} / gram "
         f"Today's Silver Rate: S925 - Rs{_format_dlt_num(silver_s925_per_g)}/ gram "
-        f"Thank you, ASHISH JWELLERS"
+        f"Thank you, TARANYA JEWELS"
     )
     logger.info("Gold rate SMS text last4=%s: %s", _msisdn(mobile)[-4:], text)
     ok, api_text = send_dlt_sms(number=mobile, text=text, dlt_template_id=settings.SMS_DLT_GOLD_RATE)

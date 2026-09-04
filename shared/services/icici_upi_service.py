@@ -643,7 +643,7 @@ def _bank_msg(data: dict, default: str = 'ICICI error') -> str:
 def _upi_pay_string(*, amount, ref_id: str) -> str:
     """One-time pay (QR3) — kept if needed later. Not used for AutoPay QR."""
     pa = (getattr(settings, 'ICICI_MERCHANT_VPA', '') or '').strip()
-    pn = (getattr(settings, 'ICICI_MERCHANT_NAME', '') or 'One Ashish').strip()
+    pn = (getattr(settings, 'ICICI_MERCHANT_NAME', '') or 'Taranya').strip()
     mc = (getattr(settings, 'ICICI_UPI_MCC', '') or '5411').strip() or '5411'
     if not pa or not ref_id:
         raise ValueError('VPA and refId required for upi://pay')
@@ -683,7 +683,7 @@ def _upi_mandate_string(mandate: UpiMandate) -> str:
     if stored:
         return stored
     pa = (getattr(settings, 'ICICI_MERCHANT_VPA', '') or '').strip()
-    pn = (getattr(settings, 'ICICI_MERCHANT_NAME', '') or 'One Ashish').strip()
+    pn = (getattr(settings, 'ICICI_MERCHANT_NAME', '') or 'Taranya').strip()
     mc = (getattr(settings, 'ICICI_UPI_MCC', '') or '5411').strip() or '5411'
     if not pa:
         raise ValueError('Set ICICI_MERCHANT_VPA in .env')
@@ -927,7 +927,7 @@ def _execute_payload(mandate: UpiMandate, instalment: SchemeInstalment, executio
         'merchantId': str(settings.ICICI_MERCHANT_ID),
         'subMerchantId': str(getattr(settings, 'ICICI_SUB_MERCHANT_ID', None) or settings.ICICI_MERCHANT_ID),
         'terminalId': _upi_terminal_id(),
-        'merchantName': getattr(settings, 'ICICI_MERCHANT_NAME', 'One Ashish'),
+        'merchantName': getattr(settings, 'ICICI_MERCHANT_NAME', 'Taranya'),
         'subMerchantName': getattr(settings, 'ICICI_SUB_MERCHANT_NAME', 'Jewellery Scheme'),
         'amount': _money(execution.amount),
         'merchantTranId': execution.merchant_tran_id,
@@ -949,7 +949,7 @@ def _notification_payload(
         'merchantId': str(settings.ICICI_MERCHANT_ID),
         'subMerchantId': str(getattr(settings, 'ICICI_SUB_MERCHANT_ID', None) or settings.ICICI_MERCHANT_ID),
         'terminalId': _upi_terminal_id(),
-        'merchantName': getattr(settings, 'ICICI_MERCHANT_NAME', 'One Ashish'),
+        'merchantName': getattr(settings, 'ICICI_MERCHANT_NAME', 'Taranya'),
         'subMerchantName': getattr(settings, 'ICICI_SUB_MERCHANT_NAME', 'Jewellery Scheme'),
         'amount': _money(notification.amount),
         'merchantTranId': notification.merchant_tran_id,
@@ -1385,7 +1385,7 @@ def create_customer_upi_mandate(*, customer, instalment_id: int, payer_vpa: str)
         'merchantId': settings.ICICI_MERCHANT_ID,
         'subMerchantId': getattr(settings, 'ICICI_SUB_MERCHANT_ID', None) or settings.ICICI_MERCHANT_ID,
         'terminalId': getattr(settings, 'ICICI_TERMINAL_ID', '6012'),
-        'merchantName': getattr(settings, 'ICICI_MERCHANT_NAME', 'One Ashish'),
+        'merchantName': getattr(settings, 'ICICI_MERCHANT_NAME', 'Taranya'),
         'subMerchantName': getattr(settings, 'ICICI_SUB_MERCHANT_NAME', 'Jewellery Scheme'),
         'payerVa': mandate.payer_vpa,
         'amount': _money(instalment.amount),
@@ -1575,7 +1575,7 @@ def _create_customer_upi_mandate_qr(*, customer, instalment_id: int) -> dict:
         'merchantId': str(settings.ICICI_MERCHANT_ID),
         'subMerchantId': str(getattr(settings, 'ICICI_SUB_MERCHANT_ID', None) or settings.ICICI_MERCHANT_ID),
         'terminalId': str(getattr(settings, 'ICICI_TERMINAL_ID', '6012') or '6012'),
-        'merchantName': getattr(settings, 'ICICI_MERCHANT_NAME', 'One Ashish'),
+        'merchantName': getattr(settings, 'ICICI_MERCHANT_NAME', 'Taranya'),
         'subMerchantName': getattr(settings, 'ICICI_SUB_MERCHANT_NAME', 'Jewellery Scheme'),
         'amount': _money(instalment.amount),
         'note': f'Scheme autopay {instalment.instalment_no}',
@@ -1997,7 +1997,7 @@ def request_upi_mandate_revoke(mandate: UpiMandate) -> dict:
         'merchantId': settings.ICICI_MERCHANT_ID,
         'subMerchantId': getattr(settings, 'ICICI_SUB_MERCHANT_ID', None) or settings.ICICI_MERCHANT_ID,
         'terminalId': getattr(settings, 'ICICI_TERMINAL_ID', '6012'),
-        'merchantName': getattr(settings, 'ICICI_MERCHANT_NAME', 'One Ashish'),
+        'merchantName': getattr(settings, 'ICICI_MERCHANT_NAME', 'Taranya'),
         'subMerchantName': getattr(settings, 'ICICI_SUB_MERCHANT_NAME', 'Jewellery Scheme'),
         'payerVa': mandate.payer_vpa or '',
         'amount': _money(mandate.amount),

@@ -50,7 +50,7 @@ def send_payment_success_sms(mobile, scheme_reference=None):
 
     message = (
         f"We have received your payment for scheme {scheme_reference or ''}. "
-        f"Thank you. ASHISH JWELLERS"
+        f"Thank you. TARANYA JEWELS"
     )
     ok, _ = send_dlt_sms(number=mobile, text=message, dlt_template_id=template_id)
     return ok

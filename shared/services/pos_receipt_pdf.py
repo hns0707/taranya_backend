@@ -1,9 +1,13 @@
 """
 POS tax invoice PDF (ReportLab). Section order and copy match the browser print receipt
 (`PosInvoiceReceipt.tsx`) so download and print stay aligned.
+
+Letterhead matches Taranya Jewels printed stationery:
+  logo + TARANYA JEWELS / address / GSTIN left + Mob. right / blue rule / watermark.
 """
 from decimal import Decimal, ROUND_HALF_UP
 from io import BytesIO
+from pathlib import Path
 from typing import List
 
 from django.utils import timezone
@@ -12,7 +16,13 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import (
+    Image,
+    Paragraph,
+    SimpleDocTemplate,
+    Table,
+    TableStyle,
+)
 
 from shared.models import Payment, SaleInvoice, SaleItem
 
@@ -21,15 +31,16 @@ SGST_RATE = Decimal("0.015")
 TOTAL_GST_RATE = CGST_RATE + SGST_RATE
 MONEY_Q = Decimal("0.01")
 
-# Mirrors jewel-admin-suite/src/pages/admin/stores/PosInvoiceReceipt.tsx
+# Taranya Jewels letterhead (matches printed stationery)
 SHOP_HEADER = {
-    "tagline": "SHUBH LABH",
-    "name": "ASHISH JEWELLERS",
-    "line": "GOLD, SILVER, DIAMONDS-RETAILS",
-    "gstin": "22ACGPJ9805J1ZK",
-    "address": "108, Akashganga Market Supela, Bhilai",
-    "phone": "98271-78575",
+    "name": "TARANYA JEWELS",
+    "address": "GANDHI CHOWK DURG (C.G.) 491001",
+    "gstin": "22BORPJ6242R1ZA",
+    "phone": "9111166788",
 }
+BRAND_BLUE = colors.HexColor("#5B8FB8")
+BRAND_BLUE_HEX = "#5B8FB8"
+LOGO_PATH = Path(__file__).resolve().parent.parent / "assets" / "taranya-logo.png"
 
 TERMS_LINES: List[str] = [
     "1. All goods must be returned within 3 working days from the date of purchase exchange.",
@@ -59,6 +70,140 @@ def _fmt_qty(d: Decimal) -> str:
 def _fmt_wt(d: Decimal) -> str:
     """Weights formatted like print `formatAmount` (2 dp for display on receipt)."""
     return f"{d.quantize(Decimal('0.01')):,.2f}"
+
+
+def _draw_letterhead_watermark(canvas, doc) -> None:
+    """Faint centered logo watermark (matches printed Taranya letterhead)."""
+    if not LOGO_PATH.is_file():
+        return
+    canvas.saveState()
+    try:
+        page_w, page_h = A4
+        size = 95 * mm
+        x = (page_w - size) / 2.0
+        y = (page_h - size) / 2.0 - 10 * mm
+        if hasattr(canvas, "setFillAlpha"):
+            canvas.setFillAlpha(0.08)
+        canvas.drawImage(
+            str(LOGO_PATH),
+            x,
+            y,
+            width=size,
+            height=size,
+            preserveAspectRatio=True,
+            mask="auto",
+        )
+    except Exception:
+        pass
+    finally:
+        canvas.restoreState()
+
+
+def _build_letterhead_table(tw: float, styles_map: dict) -> Table:
+    """
+    Printed stationery layout:
+      [logo]  TARANYA JEWELS
+              GANDHI CHOWK DURG (C.G.) 491001
+      GSTIN : …                         Mob. : …
+      ──────────────── blue rule ────────────────
+      TAX INVOICE
+    """
+    shop_nm = styles_map["shop_nm"]
+    shop_addr = styles_map["shop_addr"]
+    shop_meta = styles_map["shop_meta"]
+    tax_inv = styles_map["tax_inv"]
+
+    logo_cell: object
+    if LOGO_PATH.is_file():
+        try:
+            logo_cell = Image(str(LOGO_PATH), width=18 * mm, height=18 * mm, kind="proportional")
+        except Exception:
+            logo_cell = Paragraph("", shop_addr)
+    else:
+        logo_cell = Paragraph("", shop_addr)
+
+    title_block = Table(
+        [
+            [Paragraph(f"<b>{_esc(SHOP_HEADER['name'])}</b>", shop_nm)],
+            [Paragraph(_esc(SHOP_HEADER["address"]), shop_addr)],
+        ],
+        colWidths=[tw - 22 * mm],
+    )
+    title_block.setStyle(
+        TableStyle(
+            [
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+            ]
+        )
+    )
+
+    brand_row = Table(
+        [[logo_cell, title_block]],
+        colWidths=[20 * mm, tw - 20 * mm],
+    )
+    brand_row.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("ALIGN", (0, 0), (0, 0), "LEFT"),
+                ("ALIGN", (1, 0), (1, 0), "CENTER"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 2),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+                ("TOPPADDING", (0, 0), (-1, -1), 2),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
+
+    gst_mob = Table(
+        [[
+            Paragraph(_esc(f"GSTIN : {SHOP_HEADER['gstin']}"), shop_meta),
+            Paragraph(_esc(f"Mob. : {SHOP_HEADER['phone']}"), ParagraphStyle(
+                "shop_meta_r", parent=shop_meta, alignment=TA_RIGHT
+            )),
+        ]],
+        colWidths=[tw * 0.55, tw * 0.45],
+    )
+    gst_mob.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 2),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+                ("TOPPADDING", (0, 0), (-1, -1), 2),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("LINEBELOW", (0, 0), (-1, -1), 1.2, BRAND_BLUE),
+            ]
+        )
+    )
+
+    hdr = Table(
+        [
+            [brand_row],
+            [gst_mob],
+            [Paragraph("<b>TAX INVOICE</b>", tax_inv)],
+        ],
+        colWidths=[tw],
+    )
+    hdr.setStyle(
+        TableStyle(
+            [
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 1),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+                ("TOPPADDING", (0, -1), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, -1), (-1, -1), 6),
+                ("LINEBELOW", (0, -1), (-1, -1), GRID, colors.black),
+            ]
+        )
+    )
+    return hdr
 
 
 def amount_to_words_inr(amount: Decimal) -> str:
@@ -176,17 +321,40 @@ def build_pos_invoice_pdf_bytes(invoice: SaleInvoice) -> bytes:
     base = styles["Normal"]
     base.fontName = "Helvetica"
 
-    tag = ParagraphStyle("tag", parent=base, fontSize=8.5, leading=10, alignment=TA_CENTER)
-    shop_nm = ParagraphStyle("sn", parent=base, fontName="Helvetica-Bold", fontSize=14, leading=17, alignment=TA_CENTER)
-    shop_ln = ParagraphStyle("sl", parent=base, fontSize=9.5, leading=11.5, alignment=TA_CENTER)
-    shop_sm = ParagraphStyle("ss", parent=base, fontSize=9, leading=11, alignment=TA_CENTER)
+    shop_nm = ParagraphStyle(
+        "sn",
+        parent=base,
+        fontName="Times-Bold",
+        fontSize=16,
+        leading=19,
+        alignment=TA_CENTER,
+        textColor=BRAND_BLUE,
+    )
+    shop_addr = ParagraphStyle(
+        "sa",
+        parent=base,
+        fontName="Helvetica",
+        fontSize=9,
+        leading=11,
+        alignment=TA_CENTER,
+        textColor=BRAND_BLUE,
+    )
+    shop_meta = ParagraphStyle(
+        "sm",
+        parent=base,
+        fontName="Helvetica",
+        fontSize=9,
+        leading=11,
+        alignment=TA_LEFT,
+        textColor=BRAND_BLUE,
+    )
     tax_inv = ParagraphStyle(
         "ti",
         parent=base,
         fontName="Helvetica-Bold",
         fontSize=12,
         leading=14,
-        textColor=colors.HexColor("#1e40af"),
+        textColor=BRAND_BLUE,
         alignment=TA_CENTER,
     )
     body = ParagraphStyle("b", parent=base, fontSize=9, leading=11.5, alignment=TA_LEFT)
@@ -212,35 +380,15 @@ def build_pos_invoice_pdf_bytes(invoice: SaleInvoice) -> bytes:
 
     sections: List = []
 
-    # ----- 1) Header block (print: border-b) — tagline … + Tax Invoice -----
-    hdr_rows = [
-        [Paragraph(_esc(SHOP_HEADER["tagline"]), tag)],
-        [Paragraph(_esc(SHOP_HEADER["name"]), shop_nm)],
-        [Paragraph(_esc(SHOP_HEADER["line"]), shop_ln)],
-        [Paragraph(_esc(f": GSTIN{SHOP_HEADER['gstin']}"), shop_sm)],
-        [
-            Paragraph(
-                _esc(f"{SHOP_HEADER['address']}, Ph. No.-{SHOP_HEADER['phone']}"),
-                shop_sm,
-            )
-        ],
-        [Paragraph(_esc(f"GSTIN : {SHOP_HEADER['gstin']}"), shop_sm)],
-        [Paragraph("<b>TAX INVOICE</b>", tax_inv)],
-    ]
-    h1 = Table(hdr_rows, colWidths=[tw])
-    h1.setStyle(
-        TableStyle(
-            [
-                ("LINEBELOW", (0, -1), (-1, -1), GRID, colors.black),
-                ("LEFTPADDING", (0, 0), (-1, -1), 3),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 3),
-                ("TOPPADDING", (0, 0), (-1, -1), 2),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-                ("TOPPADDING", (0, 0), (0, 0), 4),
-                ("TOPPADDING", (0, -1), (-1, -1), 6),
-                ("BOTTOMPADDING", (0, -1), (-1, -1), 6),
-            ]
-        )
+    # ----- 1) Taranya Jewels letterhead -----
+    h1 = _build_letterhead_table(
+        tw,
+        {
+            "shop_nm": shop_nm,
+            "shop_addr": shop_addr,
+            "shop_meta": shop_meta,
+            "tax_inv": tax_inv,
+        },
     )
     sections.append([h1])
 
@@ -643,7 +791,11 @@ def build_pos_invoice_pdf_bytes(invoice: SaleInvoice) -> bytes:
         )
     )
 
-    doc.build([outer])
+    doc.build(
+        [outer],
+        onFirstPage=_draw_letterhead_watermark,
+        onLaterPages=_draw_letterhead_watermark,
+    )
     pdf = buf.getvalue()
     buf.close()
     return pdf

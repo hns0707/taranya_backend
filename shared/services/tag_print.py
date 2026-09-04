@@ -606,23 +606,27 @@ def _sku_display_line(product_code: str, tag: ProductTag) -> str:
 
 
 def _tag_company_display(brand: str) -> str:
-    """Label face brand — always show Hindi store name for Ashish."""
-    name = (brand or "").strip() or "ASHISH"
+    """Label face brand — show Hindi store name for Taranya when brand is default."""
+    name = (brand or "").strip() or "TARANYA"
     if name.upper() in (
+        "TARANYA",
+        "TARANYA JEWELS",
+        "TARANYA JEWELLERS",
         "ASHISH",
         "ASHISH JEWELLERS",
         "ASHISH JEWELRY",
         "ASHISH JEWELLY",
+        "ONE ASHISH",
     ):
-        return "आशीष ज्वैलर्स"
+        return "तरण्या ज्वेल्स"
     return name
 
 
 def _tag_brand_lines(brand: str) -> tuple[str, str]:
     """Two-line Hindi brand, centered on the tag."""
     display = _tag_company_display(brand)
-    if display == "आशीष ज्वैलर्स":
-        return "आशीष", "ज्वैलर्स"
+    if display == "तरण्या ज्वेल्स":
+        return "तरण्या", "ज्वेल्स"
     if " " in display:
         first, rest = display.split(None, 1)
         return first, rest
@@ -658,7 +662,7 @@ def _build_placeholders(tag: ProductTag, *, show_hallmark: bool = False) -> Dict
                 return s
         return ""
 
-    brand_raw = _val(getattr(sku, "brand", None) if sku else None, "ASHISH")
+    brand_raw = _val(getattr(sku, "brand", None) if sku else None, "TARANYA")
     company_name = _tag_company_display(brand_raw)
     brand_line1, brand_line2 = _tag_brand_lines(brand_raw)
 

@@ -142,7 +142,7 @@ def process_due_scheduled_reminders(*, limit: int = 100, sent_by=None) -> dict:
                 from django.conf import settings as dj_settings
 
                 message = row.message_body or (
-                    f"Dear customer, reminder from Ashish Jewellers. {row.notes}".strip()
+                    f"Dear customer, reminder from Taranya Jewels. {row.notes}".strip()
                 )
                 dlt_id = ""
                 if row.message_type == CommunicationLog.TYPE_SCHEME_REMINDER:
