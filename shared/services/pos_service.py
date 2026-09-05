@@ -99,7 +99,10 @@ def _max_active_invoice_sequence() -> int:
 
 
 def _sync_invoice_counter_to_max_active() -> int:
-    """Keep SaleInvoiceCounter aligned with max active invoice sequence."""
+    """
+    After tip-delete, pull the counter down to max(active sequences)
+    so the next allocate reuses that tip number.
+    """
     max_active = _max_active_invoice_sequence()
     counter, _ = SaleInvoiceCounter.objects.select_for_update().get_or_create(id=1)
     if int(counter.last_number or 0) != max_active:
@@ -108,13 +111,26 @@ def _sync_invoice_counter_to_max_active() -> int:
     return max_active
 
 
+def _next_invoice_sequence_from_watermark() -> int:
+    """
+    Next invoice sequence = max(counter.last_number, max active invoice seq) + 1.
+
+    - Seed sale_invoice_counters.last_number = 24 → next is 25 (even with no invoices).
+    - Tip-delete syncs last_number down to max active so that number is reused.
+    """
+    counter, _ = SaleInvoiceCounter.objects.select_for_update().get_or_create(id=1)
+    max_active = _max_active_invoice_sequence()
+    watermark = int(counter.last_number or 0)
+    return max(watermark, max_active) + 1
+
+
 def _allocate_next_invoice_sequence() -> int:
     """
-    Next number = max(active non-deleted sequences) + 1.
+    Allocate and persist the next invoice sequence.
     Deleting the latest invoice reuses that number; deleting a middle one does not.
     """
     counter, _ = SaleInvoiceCounter.objects.select_for_update().get_or_create(id=1)
-    next_number = _max_active_invoice_sequence() + 1
+    next_number = _next_invoice_sequence_from_watermark()
     counter.last_number = next_number
     counter.save(update_fields=["last_number", "system_updated_at"])
     return next_number
@@ -129,7 +145,9 @@ def _generate_invoice_number(*, for_date: date | None = None) -> str:
 
 def peek_next_invoice_number(*, for_date: date | None = None) -> str:
     """Preview the next invoice number without consuming the counter."""
-    next_number = _max_active_invoice_sequence() + 1
+    counter = SaleInvoiceCounter.objects.filter(id=1).first()
+    watermark = int(counter.last_number or 0) if counter else 0
+    next_number = max(watermark, _max_active_invoice_sequence()) + 1
     bill_date = for_date or timezone.localdate()
     fy = _financial_year_code(bill_date)
     return f"{INVOICE_PREFIX}/{next_number}/{fy}"
@@ -468,7 +486,20 @@ def soft_delete_pos_invoice(invoice_id: int, deleted_by=None) -> SaleInvoice:
 WEIGHT_PRECISION = Decimal("0.001")
 RATE_PRECISION = Decimal("0.01")
 
-SALES_INVOICE_EXPORT_HEADER = [
+# Soft sort order for PAYMENT_MODE codes that exist in lookup (does not invent missing modes).
+_EXPORT_PAYMENT_MODE_ORDER = (
+    "CASH",
+    "UPI",
+    "CARD",
+    "CHEQUE",
+    "RTGS",
+    "NEFT",
+    "IMPS",
+    "NETBANKING",
+    "BANK_TRANSFER",
+)
+
+SALES_INVOICE_EXPORT_BASE_HEADER = [
     "Date",
     "INV Number",
     "Customer Name",
@@ -481,9 +512,106 @@ SALES_INVOICE_EXPORT_HEADER = [
     "Cgst",
     "SGST",
     "total invoice",
-    "Mode of Payment",
+]
+
+SALES_INVOICE_EXPORT_TRAILING_HEADER = [
     "Amount balance",
 ]
+
+# Kept for callers that still import the old constant name.
+SALES_INVOICE_EXPORT_HEADER = (
+    SALES_INVOICE_EXPORT_BASE_HEADER
+    + ["Mode of Payment"]
+    + SALES_INVOICE_EXPORT_TRAILING_HEADER
+)
+
+
+def _payment_mode_export_label(code: str, fallback_label: str = "") -> str:
+    code_u = (code or "").strip().upper()
+    if code_u == "ADVANCE":
+        return "Advance amount"
+    label = (fallback_label or "").strip()
+    if label:
+        return label
+    return code_u.title() if code_u else "Other"
+
+
+def _export_payment_mode_columns() -> List[Tuple[str, str]]:
+    """
+    Export amount columns:
+      1) Advance amount — always first (managed outside PAYMENT_MODE)
+      2) Every active PAYMENT_MODE lookup value (new modes appear automatically)
+    ADVANCE from the lookup is skipped to avoid a duplicate column.
+    """
+    rows = list(
+        LookupValue.objects.filter(
+            lookup__code="PAYMENT_MODE",
+            lookup__is_active=True,
+            is_active=True,
+        )
+        .order_by("id")
+        .values_list("code", "label")
+    )
+
+    by_code: Dict[str, str] = {}
+    for code, label in rows:
+        c = (code or "").strip().upper()
+        if not c or c == "ADVANCE":
+            continue
+        by_code[c] = _payment_mode_export_label(c, label or "")
+
+    ordered: List[Tuple[str, str]] = [
+        ("ADVANCE", "Advance amount"),
+    ]
+    seen = {"ADVANCE"}
+
+    for code in _EXPORT_PAYMENT_MODE_ORDER:
+        if code in by_code and code not in seen:
+            ordered.append((code, by_code[code]))
+            seen.add(code)
+
+    for code in sorted(by_code.keys()):
+        if code not in seen:
+            ordered.append((code, by_code[code]))
+            seen.add(code)
+
+    return ordered
+
+
+def payment_amounts_by_mode_for_invoices(
+    invoice_ids: List[int],
+) -> Dict[int, Dict[str, Decimal]]:
+    """
+    Per invoice: map of payment-mode code -> amount paid via that mode.
+    Split payments use PaymentCollection rows; single payments use Payment.payment_mode.
+    """
+    if not invoice_ids:
+        return {}
+    out: Dict[int, Dict[str, Decimal]] = {iid: {} for iid in invoice_ids}
+    payments = (
+        Payment.objects.filter(reference_type="SALE_INVOICE", reference_id__in=invoice_ids)
+        .select_related("payment_mode")
+        .prefetch_related("collections__payment_mode")
+    )
+    for payment in payments:
+        ref_id = payment.reference_id
+        if ref_id is None or ref_id not in out:
+            continue
+        bucket = out[ref_id]
+        collections = list(payment.collections.all())
+        if payment.is_split_payment or collections:
+            for col in collections:
+                code = (
+                    (col.payment_mode.code if col.payment_mode_id else "") or ""
+                ).strip().upper()
+                if not code:
+                    continue
+                bucket[code] = bucket.get(code, Decimal("0")) + Decimal(str(col.amount or 0))
+        elif payment.payment_mode_id:
+            code = (payment.payment_mode.code or "").strip().upper()
+            if code:
+                bucket[code] = bucket.get(code, Decimal("0")) + Decimal(str(payment.amount or 0))
+    return out
 
 
 def _classify_sale_item_metal(product_name: str, purity: str) -> str:
@@ -549,8 +677,17 @@ def iter_sales_invoice_export_rows(
     date_from: date | None = None,
     date_to: date | None = None,
 ):
-    """Yield CSV rows (header first) for sales invoice export."""
-    yield SALES_INVOICE_EXPORT_HEADER
+    """Yield CSV rows (header first) for sales invoice export.
+
+    Payment modes are separate amount columns (Advance amount, Cash, UPI, …)
+    instead of one combined \"Mode of Payment\" text column.
+    """
+    mode_columns = _export_payment_mode_columns()
+    yield (
+        SALES_INVOICE_EXPORT_BASE_HEADER
+        + [label for _, label in mode_columns]
+        + SALES_INVOICE_EXPORT_TRAILING_HEADER
+    )
 
     qs = (
         SaleInvoice.objects.filter(is_deleted=False)
@@ -563,7 +700,12 @@ def iter_sales_invoice_export_rows(
         qs = qs.filter(invoice_date__lte=date_to)
 
     invoices = list(qs)
-    mode_by_id = payment_mode_map_for_invoices([inv.id for inv in invoices])
+    amounts_by_invoice = payment_amounts_by_mode_for_invoices([inv.id for inv in invoices])
+
+    def _fmt_amt(value: Decimal) -> str:
+        if not value:
+            return "0"
+        return f"{_round_money(value):f}"
 
     for inv in invoices:
         items = list(inv.items.all())
@@ -575,11 +717,12 @@ def iter_sales_invoice_export_rows(
         cgst = _round_money(taxable * CGST_RATE)
         sgst = _round_money(taxable * SGST_RATE)
         pending = _round_money(Decimal(str(inv.pending_amount or 0)))
+        mode_amounts = amounts_by_invoice.get(inv.id, {})
 
         inv_dt = inv.invoice_date
         date_str = inv_dt.strftime("%d/%m/%Y") if inv_dt else ""
 
-        yield [
+        row = [
             date_str,
             inv.invoice_number,
             inv.bill_to_name or "",
@@ -592,6 +735,8 @@ def iter_sales_invoice_export_rows(
             f"{cgst:f}",
             f"{sgst:f}",
             f"{gross:f}",
-            mode_by_id.get(inv.id, ""),
-            f"{pending:f}",
         ]
+        for code, _label in mode_columns:
+            row.append(_fmt_amt(mode_amounts.get(code, Decimal("0"))))
+        row.append(f"{pending:f}")
+        yield row

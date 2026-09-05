@@ -394,8 +394,8 @@ class SaleInvoiceCounter(SystemBaseModel):
     @transaction.atomic
     def get_next_number(cls):
         """
-        Next sequence = max(active invoice numbers) + 1 so deleting the tip
-        reuses that number; deleting a middle invoice does not fill the gap.
+        Next sequence = max(counter.last_number, max active invoice seq) + 1.
+        Seed last_number to start after a chosen value; tip-delete reuses via sync.
         """
         # Late resolve — SaleInvoice is declared below this counter model.
         SaleInvoice = cls._meta.apps.get_model('shared', 'SaleInvoice')
@@ -412,7 +412,8 @@ class SaleInvoiceCounter(SystemBaseModel):
                 if seq > max_seq:
                     max_seq = seq
         counter, _ = cls.objects.select_for_update().get_or_create(id=1)
-        counter.last_number = max_seq + 1
+        watermark = int(counter.last_number or 0)
+        counter.last_number = max(watermark, max_seq) + 1
         counter.save(update_fields=['last_number', 'system_updated_at'])
         return counter.last_number
 
